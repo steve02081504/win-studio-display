@@ -21,6 +21,23 @@ $RawMinBrightness = 400
 $RawMaxBrightness = 60000
 $RawMaxU16Brightness = 65535
 
+function Convert-RawBrightnessCandidateToPercent {
+    param([int]$Candidate)
+
+    if ($Candidate -ge $RawMinBrightness -and $Candidate -le $RawMaxBrightness) {
+        $range = $RawMaxBrightness - $RawMinBrightness
+        if ($range -gt 0) {
+            return [int][Math]::Round((($Candidate - $RawMinBrightness) * 100.0) / $range)
+        }
+    }
+
+    if ($Candidate -ge 0 -and $Candidate -le $RawMaxU16Brightness) {
+        return [int][Math]::Round(($Candidate * 100.0) / $RawMaxU16Brightness)
+    }
+
+    return $Candidate
+}
+
 if (-not $PSBoundParameters.ContainsKey("Index") -and
     $PSBoundParameters.ContainsKey("Value") -and
     $PSBoundParameters.ContainsKey("Serial") -and
@@ -53,33 +70,39 @@ if ($PSBoundParameters.ContainsKey("Index") -and $Index -lt 0) {
 }
 
 if ($PSBoundParameters.ContainsKey("Value")) {
-    [int]$parsedValue = 0
-    if (-not [int]::TryParse([string]$Value, [ref]$parsedValue)) {
+    $valueText = [string]$Value
+    $trimmedValue = if ($null -eq $valueText) { "" } else { $valueText.Trim() }
+    $wasExplicitPercent = $false
+
+    if ($trimmedValue.EndsWith("%")) {
+        $wasExplicitPercent = $true
+        $trimmedValue = $trimmedValue.Substring(0, $trimmedValue.Length - 1).Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($trimmedValue)) {
         throw "Value must be a number between 0 and 100."
     }
 
-    if ($Command -eq "set" -and $parsedValue -gt 100) {
-        if ($parsedValue -ge $RawMinBrightness -and $parsedValue -le $RawMaxBrightness) {
-            $range = $RawMaxBrightness - $RawMinBrightness
-            if ($range -gt 0) {
-                $parsedValue = [int][Math]::Round((($parsedValue - $RawMinBrightness) * 100.0) / $range)
-            }
-        }
-        elseif ($parsedValue -ge 0 -and $parsedValue -le $RawMaxU16Brightness) {
-            $parsedValue = [int][Math]::Round(($parsedValue * 100.0) / $RawMaxU16Brightness)
-        }
+    [double]$parsedNumericValue = 0
+    $parsed = [double]::TryParse(
+        $trimmedValue,
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$parsedNumericValue
+    )
+
+    if (-not $parsed) {
+        $parsed = [double]::TryParse($trimmedValue, [ref]$parsedNumericValue)
     }
 
-    if (("inc", "dec") -contains $Command -and $parsedValue -gt 100) {
-        if ($parsedValue -ge $RawMinBrightness -and $parsedValue -le $RawMaxBrightness) {
-            $range = $RawMaxBrightness - $RawMinBrightness
-            if ($range -gt 0) {
-                $parsedValue = [int][Math]::Round((($parsedValue - $RawMinBrightness) * 100.0) / $range)
-            }
-        }
-        elseif ($parsedValue -ge 0 -and $parsedValue -le $RawMaxU16Brightness) {
-            $parsedValue = [int][Math]::Round(($parsedValue * 100.0) / $RawMaxU16Brightness)
-        }
+    if (-not $parsed -or [double]::IsNaN($parsedNumericValue) -or [double]::IsInfinity($parsedNumericValue)) {
+        throw "Value must be a number between 0 and 100."
+    }
+
+    [int]$parsedValue = [int][Math]::Round($parsedNumericValue)
+
+    if (-not $wasExplicitPercent -and (("set", "inc", "dec") -contains $Command) -and $parsedValue -gt 100) {
+        $parsedValue = Convert-RawBrightnessCandidateToPercent -Candidate $parsedValue
     }
 
     if (("inc", "dec") -contains $Command) {

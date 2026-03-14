@@ -57,3 +57,15 @@
 - Fallback `inc/dec` now runs in chunks of max 100 to satisfy backend step validation and clamps parsed `get` brightness into 0..100 before delta math.
 - Backend now normalizes `inc/dec` values into 1..100 (including raw-style conversions) before execution, eliminating the `dec value must be between 1 and 100` throw path.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
+
+## 2026-03-14 Percentage Apply Bug
+
+- [x] Reproduce and trace the value-validation path that surfaces the 1..100 range error.
+- [x] Implement a parser fix so percentage-form inputs are treated as numeric values.
+- [x] Verify behavior with available checks and document any environment limitations.
+
+## 2026-03-14 Percentage Apply Bug Review
+
+- Root cause: backend value parsing only accepted strict integers; percentage-form inputs (for example `55%`) failed validation before command execution and surfaced the range error.
+- Fix: backend now supports optional trailing `%`, parses numeric values more robustly, and preserves raw-value conversion only for non-percent inputs.
+- Verification: static diff review completed and parsing/control-flow paths validated by inspection; runtime verification is blocked in this environment because PowerShell is not installed.

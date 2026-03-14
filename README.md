@@ -32,8 +32,9 @@ It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 # Get brightness
 .\tools\studio-display-brightness.ps1 get
 
-# Set brightness (0-100)
+# Set brightness (0-100, `%` suffix optional)
 .\tools\studio-display-brightness.ps1 set 55
+.\tools\studio-display-brightness.ps1 set 55%
 
 # Increase/decrease by step (1-100)
 .\tools\studio-display-brightness.ps1 inc 10
