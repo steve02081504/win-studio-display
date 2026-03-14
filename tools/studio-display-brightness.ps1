@@ -17,6 +17,10 @@ if ($env:OS -ne "Windows_NT") {
     throw "This tool only works on Windows."
 }
 
+$RawMinBrightness = 400
+$RawMaxBrightness = 60000
+$RawMaxU16Brightness = 65535
+
 if (-not $PSBoundParameters.ContainsKey("Index") -and
     $PSBoundParameters.ContainsKey("Value") -and
     $PSBoundParameters.ContainsKey("Serial") -and
@@ -52,6 +56,18 @@ if ($PSBoundParameters.ContainsKey("Value")) {
     [int]$parsedValue = 0
     if (-not [int]::TryParse([string]$Value, [ref]$parsedValue)) {
         throw "Value must be a number between 0 and 100."
+    }
+
+    if ($Command -eq "set" -and $parsedValue -gt 100) {
+        if ($parsedValue -ge $RawMinBrightness -and $parsedValue -le $RawMaxBrightness) {
+            $range = $RawMaxBrightness - $RawMinBrightness
+            if ($range -gt 0) {
+                $parsedValue = [int][Math]::Round((($parsedValue - $RawMinBrightness) * 100.0) / $range)
+            }
+        }
+        elseif ($parsedValue -ge 0 -and $parsedValue -le $RawMaxU16Brightness) {
+            $parsedValue = [int][Math]::Round(($parsedValue * 100.0) / $RawMaxU16Brightness)
+        }
     }
 
     $Value = $parsedValue
@@ -596,8 +612,8 @@ $StudioDisplayHidType = [type]$hidTypeName
 $VendorId = 0x05AC
 $PreferredProductIds = @(0x1114, 0x1115, 0x1116, 0x1117)
 $PreferredInterfaceNumbers = @(0x07, 0x0C)
-$MinBrightnessRaw = 400
-$MaxBrightnessRaw = 60000
+$MinBrightnessRaw = $RawMinBrightness
+$MaxBrightnessRaw = $RawMaxBrightness
 
 function Convert-ToPercent {
     param([uint32]$Raw)

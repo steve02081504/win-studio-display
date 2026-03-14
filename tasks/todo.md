@@ -19,6 +19,7 @@
 - [x] Add user-visible error modal and temp log output with full backend command diagnostics.
 - [x] Simplify UI backend invocation to direct script-path call with named splatted parameters.
 - [x] Align UI backend invocation with literal CLI token order for set/get paths.
+- [x] Add backend tolerance for raw brightness numeric inputs in `set` path.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -42,4 +43,5 @@
 - UI now shows full backend errors in a dialog and logs them to `%TEMP%\studio-display-brightness-ui.log` for precise troubleshooting.
 - UI backend calls now execute the backend script path directly with named splatted parameters, reducing host argument parsing edge cases.
 - UI backend call construction now mirrors manual CLI token order (`set <value> ...`), matching the known-working command-line behavior.
+- Backend `set` now accepts raw-style numeric values (400..60000 and 0..65535) and converts them to percent before validation, preventing false out-of-range errors.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
