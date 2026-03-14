@@ -15,3 +15,4 @@
 - Keep backend params tolerant of legacy positional token patterns (`get -Index N`) so stale binaries fail gracefully instead of crashing during type conversion.
 - For embedded backends in ps2exe apps, execute through a temporary script file to guarantee normal named-parameter binding semantics.
 - When EXE-hosted invocation still behaves differently, spawn a child PowerShell process (`-File ...`) so backend parsing exactly matches manual CLI execution.
+- In child-process invocation, pass `-Value` as an explicit named argument (not positional) to prevent command/value/index ambiguity in compiled-host edge cases.

@@ -143,6 +143,7 @@ function Invoke-Backend {
         $cliArgs.Add($Command)
 
         if ($PSBoundParameters.ContainsKey("Value")) {
+            $cliArgs.Add("-Value")
             $cliArgs.Add($Value.ToString())
         }
 
