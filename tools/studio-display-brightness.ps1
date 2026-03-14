@@ -70,6 +70,22 @@ if ($PSBoundParameters.ContainsKey("Value")) {
         }
     }
 
+    if (("inc", "dec") -contains $Command -and $parsedValue -gt 100) {
+        if ($parsedValue -ge $RawMinBrightness -and $parsedValue -le $RawMaxBrightness) {
+            $range = $RawMaxBrightness - $RawMinBrightness
+            if ($range -gt 0) {
+                $parsedValue = [int][Math]::Round((($parsedValue - $RawMinBrightness) * 100.0) / $range)
+            }
+        }
+        elseif ($parsedValue -ge 0 -and $parsedValue -le $RawMaxU16Brightness) {
+            $parsedValue = [int][Math]::Round(($parsedValue * 100.0) / $RawMaxU16Brightness)
+        }
+    }
+
+    if (("inc", "dec") -contains $Command) {
+        $parsedValue = [Math]::Max(1, [Math]::Min(100, $parsedValue))
+    }
+
     $Value = $parsedValue
 
     switch ($Command) {
@@ -79,14 +95,10 @@ if ($PSBoundParameters.ContainsKey("Value")) {
             }
         }
         "inc" {
-            if ($Value -lt 1 -or $Value -gt 100) {
-                throw "For 'inc', value must be between 1 and 100."
-            }
+            # Value normalized above to 1..100 for robustness.
         }
         "dec" {
-            if ($Value -lt 1 -or $Value -gt 100) {
-                throw "For 'dec', value must be between 1 and 100."
-            }
+            # Value normalized above to 1..100 for robustness.
         }
         default { }
     }

@@ -25,6 +25,7 @@
 - [x] Restore `set` as primary UI apply path with `inc/dec` fallback only on failure.
 - [x] Remove index pinning for unknown-serial UI selections to match CLI endpoint targeting behavior.
 - [x] Chunk fallback `inc/dec` deltas to 1..100 steps and clamp parsed `get` values.
+- [x] Normalize backend `inc/dec` inputs to 1..100 to prevent residual validation failures.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -54,4 +55,5 @@
 - UI Apply now attempts backend `set` first (matching working CLI behavior) and only falls back to `inc/dec` delta if `set` throws.
 - UI selector mapping now uses `-Serial` when available, otherwise no selector (no `-Index`), so backend handles unknown-serial endpoint selection the same way as working CLI commands.
 - Fallback `inc/dec` now runs in chunks of max 100 to satisfy backend step validation and clamps parsed `get` brightness into 0..100 before delta math.
+- Backend now normalizes `inc/dec` values into 1..100 (including raw-style conversions) before execution, eliminating the `dec value must be between 1 and 100` throw path.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
