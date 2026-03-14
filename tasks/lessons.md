@@ -21,3 +21,4 @@
 - When launching script files from a child PowerShell process, pass `-Command` to the script explicitly (not positional command token) to avoid parameter-position drift.
 - For embedded variables in compiled scripts, check default/local scope as well as script/global; also delete legacy sidecar files so old logic cannot shadow embedded code.
 - In GUI troubleshooting loops, surface full backend errors in a modal and persist them to a temp log path so users can share exact failing command lines.
+- Prefer direct script-path invocation with named splatted params for backend calls in UI when possible; avoid unnecessary host-process argument layers.
