@@ -157,17 +157,28 @@ function Invoke-Backend {
             $cliArgs.Add($Serial)
         }
 
-        $output = & $script:PowerShellExe @($cliArgs.ToArray()) 2>&1
+        $nativeArgs = $cliArgs.ToArray()
+        $output = & $script:PowerShellExe @nativeArgs 2>&1
         $exitCode = $LASTEXITCODE
         $textOutput = @($output | ForEach-Object { $_.ToString() })
 
         if ($exitCode -ne 0) {
+            $renderedArgs = $nativeArgs | ForEach-Object {
+                if ([string]$_ -match "\s") {
+                    '"{0}"' -f $_
+                }
+                else {
+                    $_
+                }
+            }
+            $debugCommand = "{0} {1}" -f $script:PowerShellExe, ($renderedArgs -join " ")
+
             $combined = ($textOutput -join [Environment]::NewLine)
             if ([string]::IsNullOrWhiteSpace($combined)) {
-                throw "Backend command failed with exit code $exitCode."
+                throw "Backend command failed with exit code $exitCode.`nCommand: $debugCommand"
             }
 
-            throw $combined
+            throw "$combined`nCommand: $debugCommand"
         }
 
         return $textOutput
