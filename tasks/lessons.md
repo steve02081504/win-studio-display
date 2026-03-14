@@ -10,3 +10,4 @@
 - If `Add-Type` collisions persist across session reuse, generate unique helper type names per run and invoke them through a resolved `[type]` handle.
 - For ps2exe-built apps, do not assume `$PSScriptRoot` is populated; resolve runtime paths using `System.AppContext.BaseDirectory` and other fallbacks.
 - If the user requests a single-file EXE, embed dependency scripts at build time instead of shipping sidecar `.ps1` files.
+- In EXE path fallbacks, never feed empty strings into `Join-Path`; sanitize normalized base paths (especially root-like values) before candidate expansion.

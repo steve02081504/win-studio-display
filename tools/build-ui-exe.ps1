@@ -65,6 +65,7 @@ try {
 `$script:EmbeddedBackendScript = @'
 $backendContent
 '@
+`$global:EmbeddedBackendScript = `$script:EmbeddedBackendScript
 
 $uiContent
 "@

@@ -8,7 +8,13 @@ if ($env:OS -ne "Windows_NT") {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-if (-not (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue)) {
+if (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue) {
+    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript -Scope Script).Value
+}
+elseif (Get-Variable -Name EmbeddedBackendScript -Scope Global -ErrorAction SilentlyContinue) {
+    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript -Scope Global).Value
+}
+else {
     $script:EmbeddedBackendScript = $null
 }
 
@@ -51,6 +57,14 @@ function Resolve-BackendScript {
     $uniqueDirs = @()
     foreach ($dir in $baseDirs) {
         $normalized = $dir.TrimEnd([char[]]"\\/")
+        if ([string]::IsNullOrWhiteSpace($normalized)) {
+            continue
+        }
+
+        if ($normalized -match '^[A-Za-z]:$') {
+            $normalized = "$normalized\\"
+        }
+
         if (-not $seen.ContainsKey($normalized)) {
             $seen[$normalized] = $true
             $uniqueDirs += $normalized
