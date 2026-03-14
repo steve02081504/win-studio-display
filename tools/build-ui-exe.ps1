@@ -65,6 +65,7 @@ try {
 `$script:EmbeddedBackendScript = @'
 $backendContent
 '@
+`$EmbeddedBackendScript = `$script:EmbeddedBackendScript
 `$global:EmbeddedBackendScript = `$script:EmbeddedBackendScript
 
 $uiContent
@@ -83,3 +84,9 @@ finally {
 
 Write-Output "Built UI executable: $OutputPath"
 Write-Output "Backend script embedded in EXE."
+
+$legacySidecarPath = Join-Path $outputDirectory "studio-display-brightness.ps1"
+if (Test-Path -LiteralPath $legacySidecarPath) {
+    Remove-Item -LiteralPath $legacySidecarPath -Force
+    Write-Output "Removed legacy backend sidecar: $legacySidecarPath"
+}

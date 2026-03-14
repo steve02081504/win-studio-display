@@ -15,6 +15,7 @@
 - [x] Fix native-process argument splatting and add executed-command diagnostics to backend error output.
 - [x] Update UI selector strategy to prefer serial targeting and avoid index-only routing for single-display setups.
 - [x] Pass backend `-Command` as named argument in UI child-process invocation.
+- [x] Ensure embedded backend variable lookup also checks local scope and remove stale sidecar backend after EXE builds.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -34,4 +35,5 @@
 - Native child-process invocation now uses variable-array splatting (`@nativeArgs`) and appends the exact executed command line when backend returns non-zero.
 - UI now prefers `-Serial` targeting when available and only uses `-Index` if multiple unnamed displays exist, aligning behavior with successful CLI usage.
 - UI child-process invocation now also passes backend `-Command` explicitly as named argument to remove command-position ambiguity.
+- Embedded backend discovery now checks default/local scope in addition to script/global, and EXE build now deletes old `dist/studio-display-brightness.ps1` sidecars that could override intended behavior.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

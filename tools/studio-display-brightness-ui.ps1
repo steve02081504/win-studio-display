@@ -8,7 +8,10 @@ if ($env:OS -ne "Windows_NT") {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-if (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue) {
+if (Get-Variable -Name EmbeddedBackendScript -ErrorAction SilentlyContinue) {
+    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript).Value
+}
+elseif (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue) {
     $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript -Scope Script).Value
 }
 elseif (Get-Variable -Name EmbeddedBackendScript -Scope Global -ErrorAction SilentlyContinue) {
