@@ -1,6 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$script:UiBuildId = "2026-03-14.1"
+
 if ($env:OS -ne "Windows_NT") {
     throw "This UI tool only works on Windows."
 }
@@ -101,6 +103,16 @@ $script:Loading = $false
 $script:EmbeddedBackendTempFile = $null
 $script:ErrorLogPath = Join-Path ([IO.Path]::GetTempPath()) "studio-display-brightness-ui.log"
 
+function Write-UiLog {
+    param([string]$Message)
+
+    try {
+        $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        Add-Content -LiteralPath $script:ErrorLogPath -Value "[$stamp] $Message"
+    }
+    catch { }
+}
+
 if ($script:BackendScript -eq "__EMBEDDED__") {
     $script:EmbeddedBackendTempFile = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-brightness-backend-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
     Set-Content -LiteralPath $script:EmbeddedBackendTempFile -Value $script:EmbeddedBackendScript -Encoding UTF8
@@ -135,8 +147,23 @@ function Invoke-Backend {
 
     try {
         $nativeArgs = $scriptArgs.ToArray()
+        $renderedArgs = $scriptArgs | ForEach-Object {
+            if ([string]$_ -match "\s") {
+                '"{0}"' -f $_
+            }
+            else {
+                $_
+            }
+        }
+        $debugCommand = "{0} {1}" -f $script:BackendScript, ($renderedArgs -join " ")
+
+        Write-UiLog -Message ("UI build={0} invoking: {1}" -f $script:UiBuildId, $debugCommand)
         $output = & $script:BackendScript @nativeArgs 2>&1
-        return @($output | ForEach-Object { $_.ToString() })
+        $textOutput = @($output | ForEach-Object { $_.ToString() })
+        if ($textOutput.Count -gt 0) {
+            Write-UiLog -Message ("UI build={0} output: {1}" -f $script:UiBuildId, ($textOutput -join " | "))
+        }
+        return $textOutput
     }
     catch {
         $renderedArgs = $scriptArgs | ForEach-Object {
@@ -148,7 +175,8 @@ function Invoke-Backend {
             }
         }
         $debugCommand = "{0} {1}" -f $script:BackendScript, ($renderedArgs -join " ")
-        throw "$($_.Exception.Message)`nCommand: $debugCommand"
+        Write-UiLog -Message ("UI build={0} error: {1}" -f $script:UiBuildId, $_.Exception.Message)
+        throw "$($_.Exception.Message)`nCommand: $debugCommand`nUI build: $script:UiBuildId"
     }
 }
 
@@ -253,7 +281,7 @@ function Set-BrightnessForDisplay {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Studio Display Brightness"
+$form.Text = "Studio Display Brightness ($script:UiBuildId)"
 $form.Size = New-Object System.Drawing.Size(470, 250)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -348,11 +376,7 @@ function Report-UiError {
 
     Set-Status -Message $Message -IsError $true
 
-    try {
-        $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        Add-Content -LiteralPath $script:ErrorLogPath -Value "[$stamp] $Message"
-    }
-    catch { }
+    Write-UiLog -Message ("UI build={0} modal-error: {1}" -f $script:UiBuildId, $Message)
 
     [void][System.Windows.Forms.MessageBox]::Show(
         "$Message`n`nFull log: $script:ErrorLogPath",
@@ -476,6 +500,7 @@ $applyButton.Add_Click({
 })
 
 $form.Add_Shown({
+    Write-UiLog -Message ("UI build={0} startup backend={1}" -f $script:UiBuildId, $script:BackendScript)
     Reload-Displays
 })
 
