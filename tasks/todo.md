@@ -8,6 +8,7 @@
 - [x] Embed backend logic into the generated EXE so distribution is a single file.
 - [x] Fix EXE startup path error caused by empty base-path candidate expansion.
 - [x] Fix embedded backend invocation so named params are not mis-bound as positional args.
+- [x] Add backend compatibility parsing for legacy positional `get -Index` token calls.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -20,4 +21,5 @@
 - EXE build now embeds backend script content directly into the compiled UI executable; no sidecar backend file is required.
 - UI path discovery now ignores empty normalized paths and supports embedded backend variable lookup from both script and global scopes.
 - UI backend calls now invoke the embedded script with explicit named parameters (hashtable splat), fixing `-Index` being cast into positional `Value`.
+- Backend parser now accepts legacy positional `get -Index N` patterns and rewrites them to named index selection before validation.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

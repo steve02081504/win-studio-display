@@ -12,3 +12,4 @@
 - If the user requests a single-file EXE, embed dependency scripts at build time instead of shipping sidecar `.ps1` files.
 - In EXE path fallbacks, never feed empty strings into `Join-Path`; sanitize normalized base paths (especially root-like values) before candidate expansion.
 - When invoking an embedded scriptblock, do not pass CLI-like `"-Param"` tokens as string arrays; splat a named-parameter hashtable to avoid positional type-conversion errors.
+- Keep backend params tolerant of legacy positional token patterns (`get -Index N`) so stale binaries fail gracefully instead of crashing during type conversion.

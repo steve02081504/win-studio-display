@@ -4,7 +4,7 @@ param(
     [string]$Command = "get",
 
     [Parameter(Position = 1)]
-    [int]$Value,
+    [string]$Value,
 
     [string]$Serial,
     [int]$Index
@@ -15,6 +15,25 @@ $ErrorActionPreference = "Stop"
 
 if ($env:OS -ne "Windows_NT") {
     throw "This tool only works on Windows."
+}
+
+if (-not $PSBoundParameters.ContainsKey("Index") -and
+    $PSBoundParameters.ContainsKey("Value") -and
+    $PSBoundParameters.ContainsKey("Serial") -and
+    [string]::Equals([string]$Value, "-Index", [System.StringComparison]::OrdinalIgnoreCase)) {
+
+    [int]$legacyIndex = 0
+    if (-not [int]::TryParse([string]$Serial, [ref]$legacyIndex)) {
+        throw "Could not parse legacy '-Index' argument value '$Serial'."
+    }
+
+    $Index = $legacyIndex
+    $Serial = $null
+    $Value = $null
+
+    $null = $PSBoundParameters.Remove("Value")
+    $null = $PSBoundParameters.Remove("Serial")
+    $PSBoundParameters["Index"] = $Index
 }
 
 if (("set", "inc", "dec") -contains $Command -and -not $PSBoundParameters.ContainsKey("Value")) {
@@ -30,6 +49,13 @@ if ($PSBoundParameters.ContainsKey("Index") -and $Index -lt 0) {
 }
 
 if ($PSBoundParameters.ContainsKey("Value")) {
+    [int]$parsedValue = 0
+    if (-not [int]::TryParse([string]$Value, [ref]$parsedValue)) {
+        throw "Value must be a number between 0 and 100."
+    }
+
+    $Value = $parsedValue
+
     switch ($Command) {
         "set" {
             if ($Value -lt 0 -or $Value -gt 100) {
