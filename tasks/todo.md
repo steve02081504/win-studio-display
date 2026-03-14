@@ -24,6 +24,7 @@
 - [x] Add UI build-id and backend invocation logging to prove which executable code path is running.
 - [x] Restore `set` as primary UI apply path with `inc/dec` fallback only on failure.
 - [x] Remove index pinning for unknown-serial UI selections to match CLI endpoint targeting behavior.
+- [x] Chunk fallback `inc/dec` deltas to 1..100 steps and clamp parsed `get` values.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -52,4 +53,5 @@
 - UI now includes build id `2026-03-14.1` in title and logs every backend invocation/output to `%TEMP%\studio-display-brightness-ui.log` to detect stale EXE usage.
 - UI Apply now attempts backend `set` first (matching working CLI behavior) and only falls back to `inc/dec` delta if `set` throws.
 - UI selector mapping now uses `-Serial` when available, otherwise no selector (no `-Index`), so backend handles unknown-serial endpoint selection the same way as working CLI commands.
+- Fallback `inc/dec` now runs in chunks of max 100 to satisfy backend step validation and clamps parsed `get` brightness into 0..100 before delta math.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

@@ -28,3 +28,4 @@
 - When a specific backend command path (`set`) remains unstable in compiled UI hosts, switch UI behavior to equivalent stable primitives (`inc/dec` delta) to keep functionality reliable.
 - Prefer parity with known-working CLI behavior: keep `set` as the primary UI apply path and reserve `inc/dec` only as a fallback.
 - If there is a mismatch between CLI and UI behavior on one display, avoid `-Index` endpoint pinning for unknown-serial devices; let backend default selection target all matching endpoints like CLI.
+- For `inc/dec` fallback paths, split large deltas into <=100 chunks and clamp parsed brightness to 0..100 to satisfy backend step constraints.

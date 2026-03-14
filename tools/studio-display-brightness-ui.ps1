@@ -245,11 +245,32 @@ function Get-BrightnessForDisplay {
     $lines = Invoke-Backend -Command "get" @selector
     foreach ($line in $lines) {
         if ($line -match 'brightness=(?<value>\d+)%') {
-            return [int]$Matches["value"]
+            $parsed = [int]$Matches["value"]
+            return [Math]::Max(0, [Math]::Min(100, $parsed))
         }
     }
 
     throw "Could not parse brightness from backend output."
+}
+
+function Invoke-BrightnessDelta {
+    param(
+        [ValidateSet("inc", "dec")]
+        [string]$Direction,
+        [int]$Amount,
+        [hashtable]$Selector
+    )
+
+    $remaining = [Math]::Max(0, $Amount)
+    while ($remaining -gt 0) {
+        $step = [Math]::Min(100, $remaining)
+        if ($step -lt 1) {
+            break
+        }
+
+        $null = Invoke-Backend -Command $Direction -Value $step @Selector
+        $remaining -= $step
+    }
 }
 
 function Set-BrightnessForDisplay {
@@ -277,11 +298,11 @@ function Set-BrightnessForDisplay {
 
     if ($target -gt $current) {
         $step = $target - $current
-        $null = Invoke-Backend -Command "inc" -Value $step @selector
+        Invoke-BrightnessDelta -Direction "inc" -Amount $step -Selector $selector
     }
     else {
         $step = $current - $target
-        $null = Invoke-Backend -Command "dec" -Value $step @selector
+        Invoke-BrightnessDelta -Direction "dec" -Amount $step -Selector $selector
     }
 }
 
