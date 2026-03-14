@@ -263,8 +263,17 @@ function Set-BrightnessForDisplay {
     )
 
     $selector = Get-SelectorArgs -Display $Display
-    $current = Get-BrightnessForDisplay -Display $Display
     $target = [Math]::Max(0, [Math]::Min(100, $Value))
+
+    try {
+        $null = Invoke-Backend -Command "set" -Value $target @selector
+        return
+    }
+    catch {
+        # Fallback for environments where set binding is unreliable.
+    }
+
+    $current = Get-BrightnessForDisplay -Display $Display
 
     if ($target -eq $current) {
         return

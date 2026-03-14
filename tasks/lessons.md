@@ -26,3 +26,4 @@
 - For `set`, accept both percent and raw numeric brightness forms to harden against host-dependent argument/value transformations.
 - Add a visible UI build id and log every backend invocation so stale EXE runs can be distinguished from current code immediately.
 - When a specific backend command path (`set`) remains unstable in compiled UI hosts, switch UI behavior to equivalent stable primitives (`inc/dec` delta) to keep functionality reliable.
+- Prefer parity with known-working CLI behavior: keep `set` as the primary UI apply path and reserve `inc/dec` only as a fallback.
