@@ -10,6 +10,7 @@
 - [x] Fix embedded backend invocation so named params are not mis-bound as positional args.
 - [x] Add backend compatibility parsing for legacy positional `get -Index` token calls.
 - [x] Run embedded backend via temp script file to guarantee parameter binding parity with external script execution.
+- [x] Execute backend via child PowerShell process to guarantee CLI-equivalent argument parsing from EXE.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -24,4 +25,5 @@
 - UI backend calls now invoke the embedded script with explicit named parameters (hashtable splat), fixing `-Index` being cast into positional `Value`.
 - Backend parser now accepts legacy positional `get -Index N` patterns and rewrites them to named index selection before validation.
 - Embedded backend execution now materializes to a temp `.ps1` and invokes that path, eliminating scriptblock binding edge cases seen in the EXE.
+- UI now invokes backend through a child `powershell.exe`/`pwsh.exe` process with explicit CLI args, matching real command-line behavior and avoiding in-runspace binding quirks.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

@@ -14,3 +14,4 @@
 - When invoking an embedded scriptblock, do not pass CLI-like `"-Param"` tokens as string arrays; splat a named-parameter hashtable to avoid positional type-conversion errors.
 - Keep backend params tolerant of legacy positional token patterns (`get -Index N`) so stale binaries fail gracefully instead of crashing during type conversion.
 - For embedded backends in ps2exe apps, execute through a temporary script file to guarantee normal named-parameter binding semantics.
+- When EXE-hosted invocation still behaves differently, spawn a child PowerShell process (`-File ...`) so backend parsing exactly matches manual CLI execution.

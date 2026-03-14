@@ -96,12 +96,29 @@ $script:BackendScript = Resolve-BackendScript
 $script:Displays = @()
 $script:Loading = $false
 $script:EmbeddedBackendTempFile = $null
+$script:PowerShellExe = $null
 
 if ($script:BackendScript -eq "__EMBEDDED__") {
     $script:EmbeddedBackendTempFile = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-brightness-backend-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
     Set-Content -LiteralPath $script:EmbeddedBackendTempFile -Value $script:EmbeddedBackendScript -Encoding UTF8
     $script:BackendScript = $script:EmbeddedBackendTempFile
 }
+
+function Resolve-PowerShellExecutable {
+    $powershell = Get-Command -Name "powershell.exe" -ErrorAction SilentlyContinue
+    if ($powershell) {
+        return $powershell.Source
+    }
+
+    $pwsh = Get-Command -Name "pwsh.exe" -ErrorAction SilentlyContinue
+    if ($pwsh) {
+        return $pwsh.Source
+    }
+
+    throw "Could not locate powershell.exe or pwsh.exe to invoke backend script."
+}
+
+$script:PowerShellExe = Resolve-PowerShellExecutable
 
 function Invoke-Backend {
     param(
@@ -112,22 +129,47 @@ function Invoke-Backend {
         [string]$Serial
     )
 
-    $invokeParams = @{ Command = $Command }
-    if ($PSBoundParameters.ContainsKey("Value")) {
-        $invokeParams["Value"] = $Value
-    }
-
-    if ($PSBoundParameters.ContainsKey("Index")) {
-        $invokeParams["Index"] = $Index
-    }
-
-    if ($PSBoundParameters.ContainsKey("Serial") -and -not [string]::IsNullOrWhiteSpace($Serial)) {
-        $invokeParams["Serial"] = $Serial
-    }
-
     try {
-        $output = & $script:BackendScript @invokeParams 2>&1
-        return @($output | ForEach-Object { $_.ToString() })
+        $cliArgs = New-Object System.Collections.Generic.List[string]
+        $cliArgs.Add("-NoProfile")
+
+        if ($script:PowerShellExe.ToLowerInvariant().EndsWith("powershell.exe")) {
+            $cliArgs.Add("-ExecutionPolicy")
+            $cliArgs.Add("Bypass")
+        }
+
+        $cliArgs.Add("-File")
+        $cliArgs.Add($script:BackendScript)
+        $cliArgs.Add($Command)
+
+        if ($PSBoundParameters.ContainsKey("Value")) {
+            $cliArgs.Add($Value.ToString())
+        }
+
+        if ($PSBoundParameters.ContainsKey("Index")) {
+            $cliArgs.Add("-Index")
+            $cliArgs.Add($Index.ToString())
+        }
+
+        if ($PSBoundParameters.ContainsKey("Serial") -and -not [string]::IsNullOrWhiteSpace($Serial)) {
+            $cliArgs.Add("-Serial")
+            $cliArgs.Add($Serial)
+        }
+
+        $output = & $script:PowerShellExe @($cliArgs.ToArray()) 2>&1
+        $exitCode = $LASTEXITCODE
+        $textOutput = @($output | ForEach-Object { $_.ToString() })
+
+        if ($exitCode -ne 0) {
+            $combined = ($textOutput -join [Environment]::NewLine)
+            if ([string]::IsNullOrWhiteSpace($combined)) {
+                throw "Backend command failed with exit code $exitCode."
+            }
+
+            throw $combined
+        }
+
+        return $textOutput
     }
     catch {
         throw $_.Exception.Message
