@@ -7,6 +7,7 @@
 - [x] Make EXE runtime path resolution robust when `$PSScriptRoot` is empty.
 - [x] Embed backend logic into the generated EXE so distribution is a single file.
 - [x] Fix EXE startup path error caused by empty base-path candidate expansion.
+- [x] Fix embedded backend invocation so named params are not mis-bound as positional args.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -18,4 +19,5 @@
 - UI backend discovery now checks multiple runtime base directories (including `System.AppContext.BaseDirectory`) to work from compiled EXE launches.
 - EXE build now embeds backend script content directly into the compiled UI executable; no sidecar backend file is required.
 - UI path discovery now ignores empty normalized paths and supports embedded backend variable lookup from both script and global scopes.
+- UI backend calls now invoke the embedded script with explicit named parameters (hashtable splat), fixing `-Index` being cast into positional `Value`.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

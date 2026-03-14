@@ -101,14 +101,33 @@ if ($script:BackendScript -eq "__EMBEDDED__") {
 }
 
 function Invoke-Backend {
-    param([string[]]$Arguments)
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Command,
+        [int]$Value,
+        [int]$Index,
+        [string]$Serial
+    )
+
+    $invokeParams = @{ Command = $Command }
+    if ($PSBoundParameters.ContainsKey("Value")) {
+        $invokeParams["Value"] = $Value
+    }
+
+    if ($PSBoundParameters.ContainsKey("Index")) {
+        $invokeParams["Index"] = $Index
+    }
+
+    if ($PSBoundParameters.ContainsKey("Serial") -and -not [string]::IsNullOrWhiteSpace($Serial)) {
+        $invokeParams["Serial"] = $Serial
+    }
 
     try {
         if ($script:BackendScript -eq "__EMBEDDED__") {
-            $output = & $script:EmbeddedBackendBlock @Arguments 2>&1
+            $output = & $script:EmbeddedBackendBlock @invokeParams 2>&1
         }
         else {
-            $output = & $script:BackendScript @Arguments 2>&1
+            $output = & $script:BackendScript @invokeParams 2>&1
         }
         return @($output | ForEach-Object { $_.ToString() })
     }
@@ -140,7 +159,7 @@ function Parse-DisplayLine {
 }
 
 function Get-Displays {
-    $lines = Invoke-Backend -Arguments @("list")
+    $lines = Invoke-Backend -Command "list"
     $parsed = @()
 
     foreach ($line in $lines) {
@@ -165,7 +184,7 @@ function Get-Displays {
 function Get-BrightnessForIndex {
     param([int]$Index)
 
-    $lines = Invoke-Backend -Arguments @("get", "-Index", $Index.ToString())
+    $lines = Invoke-Backend -Command "get" -Index $Index
     foreach ($line in $lines) {
         if ($line -match 'brightness=(?<value>\d+)%') {
             return [int]$Matches["value"]
@@ -181,7 +200,7 @@ function Set-BrightnessForIndex {
         [int]$Value
     )
 
-    $null = Invoke-Backend -Arguments @("set", $Value.ToString(), "-Index", $Index.ToString())
+    $null = Invoke-Backend -Command "set" -Value $Value -Index $Index
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -304,8 +323,14 @@ function Reload-Displays {
         $displayCombo.Items.Clear()
 
         foreach ($display in $script:Displays) {
-            $serialText = if ([string]::IsNullOrWhiteSpace($display.Serial)) { "unknown" } else { $display.Serial }
-            $itemText = "#{0} serial={1} pid={2} mi={3}" -f $display.Index, $serialText, $display.Pid, $display.Mi
+            $serialText = if ([string]::IsNullOrWhiteSpace($display.Serial) -or $display.Serial -eq "unknown") {
+                "display-{0}" -f $display.Index
+            }
+            else {
+                $display.Serial
+            }
+
+            $itemText = "#{0} {1} pid={2} mi={3}" -f $display.Index, $serialText, $display.Pid, $display.Mi
             [void]$displayCombo.Items.Add($itemText)
         }
 
