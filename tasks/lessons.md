@@ -22,3 +22,4 @@
 - For embedded variables in compiled scripts, check default/local scope as well as script/global; also delete legacy sidecar files so old logic cannot shadow embedded code.
 - In GUI troubleshooting loops, surface full backend errors in a modal and persist them to a temp log path so users can share exact failing command lines.
 - Prefer direct script-path invocation with named splatted params for backend calls in UI when possible; avoid unnecessary host-process argument layers.
+- If backend CLI works but UI still fails, mirror the exact CLI token order (`set <value> [-Index n|-Serial s]`) in UI invocation instead of abstract parameter maps.

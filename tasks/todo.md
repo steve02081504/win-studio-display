@@ -18,6 +18,7 @@
 - [x] Ensure embedded backend variable lookup also checks local scope and remove stale sidecar backend after EXE builds.
 - [x] Add user-visible error modal and temp log output with full backend command diagnostics.
 - [x] Simplify UI backend invocation to direct script-path call with named splatted parameters.
+- [x] Align UI backend invocation with literal CLI token order for set/get paths.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -40,4 +41,5 @@
 - Embedded backend discovery now checks default/local scope in addition to script/global, and EXE build now deletes old `dist/studio-display-brightness.ps1` sidecars that could override intended behavior.
 - UI now shows full backend errors in a dialog and logs them to `%TEMP%\studio-display-brightness-ui.log` for precise troubleshooting.
 - UI backend calls now execute the backend script path directly with named splatted parameters, reducing host argument parsing edge cases.
+- UI backend call construction now mirrors manual CLI token order (`set <value> ...`), matching the known-working command-line behavior.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

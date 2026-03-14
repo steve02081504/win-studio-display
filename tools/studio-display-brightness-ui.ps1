@@ -116,27 +116,37 @@ function Invoke-Backend {
         [string]$Serial
     )
 
-    $invokeParams = @{ Command = $Command }
+    $scriptArgs = New-Object System.Collections.Generic.List[string]
+    $scriptArgs.Add($Command)
+
     if ($PSBoundParameters.ContainsKey("Value")) {
-        $invokeParams["Value"] = $Value
+        $scriptArgs.Add($Value.ToString())
     }
 
     if ($PSBoundParameters.ContainsKey("Index")) {
-        $invokeParams["Index"] = $Index
+        $scriptArgs.Add("-Index")
+        $scriptArgs.Add($Index.ToString())
     }
 
     if ($PSBoundParameters.ContainsKey("Serial") -and -not [string]::IsNullOrWhiteSpace($Serial)) {
-        $invokeParams["Serial"] = $Serial
+        $scriptArgs.Add("-Serial")
+        $scriptArgs.Add($Serial)
     }
 
     try {
-        $output = & $script:BackendScript @invokeParams 2>&1
+        $nativeArgs = $scriptArgs.ToArray()
+        $output = & $script:BackendScript @nativeArgs 2>&1
         return @($output | ForEach-Object { $_.ToString() })
     }
     catch {
-        $renderedArgs = $invokeParams.GetEnumerator() |
-            Sort-Object Name |
-            ForEach-Object { "-{0} {1}" -f $_.Name, $_.Value }
+        $renderedArgs = $scriptArgs | ForEach-Object {
+            if ([string]$_ -match "\s") {
+                '"{0}"' -f $_
+            }
+            else {
+                $_
+            }
+        }
         $debugCommand = "{0} {1}" -f $script:BackendScript, ($renderedArgs -join " ")
         throw "$($_.Exception.Message)`nCommand: $debugCommand"
     }
