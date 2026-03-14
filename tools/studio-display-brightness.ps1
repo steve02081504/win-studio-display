@@ -1,14 +1,12 @@
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("get", "set", "inc", "dec", "list")]
+    [ValidateSet("list", "get", "set", "inc", "dec")]
     [string]$Command = "get",
 
     [Parameter(Position = 1)]
     [int]$Value,
 
-    [string]$MonitorName = "Studio Display",
-    [int]$MonitorIndex,
-    [switch]$All
+    [string]$Serial
 )
 
 Set-StrictMode -Version Latest
@@ -43,331 +41,407 @@ if ($PSBoundParameters.ContainsKey("Value")) {
     }
 }
 
-if ($PSBoundParameters.ContainsKey("MonitorIndex") -and $MonitorIndex -lt 0) {
-    throw "MonitorIndex must be 0 or higher."
-}
-
 $nativeCode = @"
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+using System.Text;
 
-public static class NativeMethods
+public class StudioDisplayDevice
 {
+    public string Path { get; set; }
+    public string Serial { get; set; }
+    public uint? BrightnessRaw { get; set; }
+}
+
+public static class StudioDisplayHid
+{
+    private const int ERROR_NO_MORE_ITEMS = 259;
+    private const uint DIGCF_PRESENT = 0x2;
+    private const uint DIGCF_DEVICEINTERFACE = 0x10;
+    private const uint GENERIC_READ = 0x80000000;
+    private const uint GENERIC_WRITE = 0x40000000;
+    private const uint FILE_SHARE_READ = 0x1;
+    private const uint FILE_SHARE_WRITE = 0x2;
+    private const uint OPEN_EXISTING = 3;
+
+    private const byte REPORT_ID = 1;
+    private const int REPORT_LENGTH = 7;
+
     [StructLayout(LayoutKind.Sequential)]
-    public struct RECT
+    private struct SP_DEVICE_INTERFACE_DATA
     {
-        public int left;
-        public int top;
-        public int right;
-        public int bottom;
+        public uint cbSize;
+        public Guid InterfaceClassGuid;
+        public uint Flags;
+        public IntPtr Reserved;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct PHYSICAL_MONITOR
+    private struct SP_DEVICE_INTERFACE_DETAIL_DATA
     {
-        public IntPtr hPhysicalMonitor;
+        public uint cbSize;
 
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-        public string szPhysicalMonitorDescription;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
+        public string DevicePath;
     }
 
-    public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HIDD_ATTRIBUTES
+    {
+        public int Size;
+        public ushort VendorID;
+        public ushort ProductID;
+        public ushort VersionNumber;
+    }
 
-    [DllImport("user32.dll")]
-    public static extern bool EnumDisplayMonitors(
-        IntPtr hdc,
-        IntPtr lprcClip,
-        MonitorEnumProc lpfnEnum,
-        IntPtr dwData);
+    [DllImport("hid.dll")]
+    private static extern void HidD_GetHidGuid(out Guid HidGuid);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(
-        IntPtr hMonitor,
-        out uint pdwNumberOfPhysicalMonitors);
+    [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_GetAttributes(SafeFileHandle HidDeviceObject, ref HIDD_ATTRIBUTES Attributes);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool GetPhysicalMonitorsFromHMONITOR(
-        IntPtr hMonitor,
-        uint dwPhysicalMonitorArraySize,
-        [Out] PHYSICAL_MONITOR[] pPhysicalMonitorArray);
+    [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_GetSerialNumberString(SafeFileHandle HidDeviceObject, byte[] Buffer, int BufferLength);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool DestroyPhysicalMonitors(
-        uint dwPhysicalMonitorArraySize,
-        PHYSICAL_MONITOR[] pPhysicalMonitorArray);
+    [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_GetFeature(SafeFileHandle HidDeviceObject, byte[] ReportBuffer, int ReportBufferLength);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool GetMonitorCapabilities(
-        IntPtr hMonitor,
-        out uint pdwMonitorCapabilities,
-        out uint pdwSupportedColorTemperatures);
+    [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_SetFeature(SafeFileHandle HidDeviceObject, byte[] ReportBuffer, int ReportBufferLength);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool GetMonitorBrightness(
-        IntPtr hMonitor,
-        out uint pdwMinimumBrightness,
-        out uint pdwCurrentBrightness,
-        out uint pdwMaximumBrightness);
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern IntPtr SetupDiGetClassDevs(
+        ref Guid ClassGuid,
+        IntPtr Enumerator,
+        IntPtr hwndParent,
+        uint Flags);
 
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool SetMonitorBrightness(
-        IntPtr hMonitor,
-        uint dwNewBrightness);
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiEnumDeviceInterfaces(
+        IntPtr DeviceInfoSet,
+        IntPtr DeviceInfoData,
+        ref Guid InterfaceClassGuid,
+        uint MemberIndex,
+        ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData);
+
+    [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool SetupDiGetDeviceInterfaceDetail(
+        IntPtr DeviceInfoSet,
+        ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData,
+        IntPtr DeviceInterfaceDetailData,
+        uint DeviceInterfaceDetailDataSize,
+        out uint RequiredSize,
+        IntPtr DeviceInfoData);
+
+    [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool SetupDiGetDeviceInterfaceDetail(
+        IntPtr DeviceInfoSet,
+        ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData,
+        ref SP_DEVICE_INTERFACE_DETAIL_DATA DeviceInterfaceDetailData,
+        uint DeviceInterfaceDetailDataSize,
+        out uint RequiredSize,
+        IntPtr DeviceInfoData);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    private static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern SafeFileHandle CreateFile(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    public static List<StudioDisplayDevice> Enumerate(ushort vendorId, ushort productId, int interfaceNumber)
+    {
+        var devices = new List<StudioDisplayDevice>();
+
+        Guid hidGuid;
+        HidD_GetHidGuid(out hidGuid);
+
+        IntPtr deviceInfoSet = SetupDiGetClassDevs(ref hidGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+        if (deviceInfoSet == IntPtr.Zero || deviceInfoSet.ToInt64() == -1)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "SetupDiGetClassDevs failed");
+        }
+
+        try
+        {
+            uint index = 0;
+            while (true)
+            {
+                var interfaceData = new SP_DEVICE_INTERFACE_DATA();
+                interfaceData.cbSize = (uint)Marshal.SizeOf(typeof(SP_DEVICE_INTERFACE_DATA));
+
+                bool enumOk = SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, index, ref interfaceData);
+                if (!enumOk)
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    if (err == ERROR_NO_MORE_ITEMS)
+                    {
+                        break;
+                    }
+
+                    index++;
+                    continue;
+                }
+
+                uint requiredSize = 0;
+                SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref interfaceData, IntPtr.Zero, 0, out requiredSize, IntPtr.Zero);
+
+                var detailData = new SP_DEVICE_INTERFACE_DETAIL_DATA();
+                detailData.cbSize = (uint)(IntPtr.Size == 8 ? 8 : 6);
+
+                bool detailOk = SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref interfaceData, ref detailData, requiredSize, out requiredSize, IntPtr.Zero);
+                if (!detailOk)
+                {
+                    index++;
+                    continue;
+                }
+
+                string path = detailData.DevicePath;
+                if (String.IsNullOrWhiteSpace(path))
+                {
+                    index++;
+                    continue;
+                }
+
+                if (interfaceNumber >= 0)
+                {
+                    string needle = "&mi_" + interfaceNumber.ToString("X2").ToLowerInvariant();
+                    if (path.ToLowerInvariant().IndexOf(needle, StringComparison.Ordinal) < 0)
+                    {
+                        index++;
+                        continue;
+                    }
+                }
+
+                using (SafeFileHandle handle = OpenPath(path, true))
+                {
+                    if (handle.IsInvalid)
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    var attributes = new HIDD_ATTRIBUTES();
+                    attributes.Size = Marshal.SizeOf(typeof(HIDD_ATTRIBUTES));
+                    if (!HidD_GetAttributes(handle, ref attributes))
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    if (attributes.VendorID != vendorId || attributes.ProductID != productId)
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    string serial = ReadSerial(handle);
+                    uint brightness;
+                    uint? brightnessRaw = TryReadBrightness(handle, out brightness) ? (uint?)brightness : null;
+
+                    devices.Add(new StudioDisplayDevice
+                    {
+                        Path = path,
+                        Serial = serial,
+                        BrightnessRaw = brightnessRaw
+                    });
+                }
+
+                index++;
+            }
+        }
+        finally
+        {
+            SetupDiDestroyDeviceInfoList(deviceInfoSet);
+        }
+
+        return devices;
+    }
+
+    public static uint ReadBrightnessRaw(string path)
+    {
+        using (SafeFileHandle handle = OpenPath(path, true))
+        {
+            if (handle.IsInvalid)
+            {
+                throw new InvalidOperationException("Could not open device path.");
+            }
+
+            uint value;
+            if (!TryReadBrightness(handle, out value))
+            {
+                throw new InvalidOperationException("Could not read brightness feature report.");
+            }
+
+            return value;
+        }
+    }
+
+    public static void WriteBrightnessRaw(string path, uint rawBrightness)
+    {
+        using (SafeFileHandle handle = OpenPath(path, true))
+        {
+            if (handle.IsInvalid)
+            {
+                throw new InvalidOperationException("Could not open device path.");
+            }
+
+            var report = new byte[REPORT_LENGTH];
+            report[0] = REPORT_ID;
+            var rawBytes = BitConverter.GetBytes(rawBrightness);
+            Buffer.BlockCopy(rawBytes, 0, report, 1, 4);
+
+            if (!HidD_SetFeature(handle, report, report.Length))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_SetFeature failed");
+            }
+        }
+    }
+
+    private static SafeFileHandle OpenPath(string path, bool readWrite)
+    {
+        uint access = readWrite ? (GENERIC_READ | GENERIC_WRITE) : 0;
+        return CreateFile(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+    }
+
+    private static string ReadSerial(SafeFileHandle handle)
+    {
+        var serialBuffer = new byte[256];
+        if (!HidD_GetSerialNumberString(handle, serialBuffer, serialBuffer.Length))
+        {
+            return null;
+        }
+
+        string value = Encoding.Unicode.GetString(serialBuffer);
+        int nullTerminator = value.IndexOf('\0');
+        if (nullTerminator >= 0)
+        {
+            value = value.Substring(0, nullTerminator);
+        }
+
+        value = value.Trim();
+        return value.Length == 0 ? null : value;
+    }
+
+    private static bool TryReadBrightness(SafeFileHandle handle, out uint brightness)
+    {
+        var report = new byte[REPORT_LENGTH];
+        report[0] = REPORT_ID;
+
+        if (!HidD_GetFeature(handle, report, report.Length))
+        {
+            brightness = 0;
+            return false;
+        }
+
+        brightness = BitConverter.ToUInt32(report, 1);
+        return true;
+    }
 }
 "@
 
 Add-Type -TypeDefinition $nativeCode -Language CSharp
 
-function Convert-ToPercent {
-    param(
-        [uint32]$RawValue,
-        [uint32]$MinValue,
-        [uint32]$MaxValue
-    )
+$VendorId = 0x05AC
+$ProductId = 0x1114
+$InterfaceNumber = 0x07
+$MinBrightnessRaw = 400
+$MaxBrightnessRaw = 60000
 
-    if ($MaxValue -le $MinValue) {
+function Convert-ToPercent {
+    param([uint32]$Raw)
+
+    if ($Raw -lt $MinBrightnessRaw) { $Raw = $MinBrightnessRaw }
+    if ($Raw -gt $MaxBrightnessRaw) { $Raw = $MaxBrightnessRaw }
+
+    $span = $MaxBrightnessRaw - $MinBrightnessRaw
+    if ($span -le 0) {
         return 0
     }
 
-    return [int][Math]::Round((($RawValue - $MinValue) * 100.0) / ($MaxValue - $MinValue))
+    return [int][Math]::Round((($Raw - $MinBrightnessRaw) * 100.0) / $span)
 }
 
-function Convert-ToRawBrightness {
-    param(
-        [int]$Percent,
-        [uint32]$MinValue,
-        [uint32]$MaxValue
-    )
+function Convert-ToRaw {
+    param([int]$Percent)
 
-    if ($MaxValue -le $MinValue) {
-        return $MinValue
-    }
-
-    $clampedPercent = [Math]::Max(0, [Math]::Min(100, $Percent))
-    return [uint32][Math]::Round($MinValue + (($MaxValue - $MinValue) * ($clampedPercent / 100.0)))
+    $clamped = [Math]::Max(0, [Math]::Min(100, $Percent))
+    $span = $MaxBrightnessRaw - $MinBrightnessRaw
+    return [uint32][Math]::Round($MinBrightnessRaw + (($clamped / 100.0) * $span))
 }
 
-function Convert-UInt16ArrayToText {
-    param([uint16[]]$Data)
-
-    if (-not $Data) {
-        return ""
+function Get-StudioDisplays {
+    $devices = [StudioDisplayHid]::Enumerate([uint16]$VendorId, [uint16]$ProductId, $InterfaceNumber)
+    if (-not $devices -or $devices.Count -eq 0) {
+        throw "No Apple Studio Display HID interface found (VID_05AC, PID_1114, MI_07)."
     }
 
-    $characters = foreach ($value in $Data) {
-        if ($value -ne 0) {
-            [char]$value
-        }
+    if ([string]::IsNullOrWhiteSpace($Serial)) {
+        return $devices
     }
 
-    return (-join $characters).Trim()
+    $matched = $devices | Where-Object { $_.Serial -and $_.Serial -eq $Serial }
+    if (-not $matched -or $matched.Count -eq 0) {
+        throw "No Studio Display matched serial '$Serial'."
+    }
+
+    return $matched
 }
 
-function Get-WmiFriendlyMonitorNames {
-    $names = New-Object "System.Collections.Generic.List[string]"
+$targets = Get-StudioDisplays
 
-    try {
-        $entries = Get-CimInstance -Namespace "root/wmi" -ClassName "WmiMonitorID" -ErrorAction Stop |
-            Where-Object { $_.Active -eq $true }
-
-        foreach ($entry in $entries) {
-            $friendly = Convert-UInt16ArrayToText -Data $entry.UserFriendlyName
-            if ([string]::IsNullOrWhiteSpace($friendly)) {
-                $manufacturer = Convert-UInt16ArrayToText -Data $entry.ManufacturerName
-                $productCode = Convert-UInt16ArrayToText -Data $entry.ProductCodeID
-                $friendly = ("{0} {1}" -f $manufacturer, $productCode).Trim()
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($friendly)) {
-                $names.Add($friendly) | Out-Null
-            }
-        }
+if ($Command -eq "list") {
+    $index = 0
+    foreach ($device in $targets) {
+        $serialText = if ([string]::IsNullOrWhiteSpace($device.Serial)) { "unknown" } else { $device.Serial }
+        $brightnessText = if ($null -eq $device.BrightnessRaw) { "unknown" } else { "$(Convert-ToPercent -Raw $device.BrightnessRaw)%" }
+        Write-Output ("#{0} serial={1} brightness={2}" -f $index, $serialText, $brightnessText)
+        $index++
     }
-    catch {
-        # Best-effort enrichment only; keep raw DXVA names when WMI is unavailable.
-    }
-
-    return $names
+    return
 }
 
-$physicalMonitors = New-Object "System.Collections.Generic.List[NativeMethods+PHYSICAL_MONITOR]"
-$monitorInfo = New-Object "System.Collections.Generic.List[object]"
+foreach ($device in $targets) {
+    $serialText = if ([string]::IsNullOrWhiteSpace($device.Serial)) { "unknown" } else { $device.Serial }
+    $currentRaw = [StudioDisplayHid]::ReadBrightnessRaw($device.Path)
+    $currentPercent = Convert-ToPercent -Raw $currentRaw
 
-$enumCallback = [NativeMethods+MonitorEnumProc]{
-    param(
-        [IntPtr]$hMonitor,
-        [IntPtr]$hdcMonitor,
-        [ref][NativeMethods+RECT]$lprcMonitor,
-        [IntPtr]$dwData
-    )
-
-    [uint32]$count = 0
-    if (-not [NativeMethods]::GetNumberOfPhysicalMonitorsFromHMONITOR($hMonitor, [ref]$count)) {
-        return $true
-    }
-
-    if ($count -eq 0) {
-        return $true
-    }
-
-    $buffer = New-Object "NativeMethods+PHYSICAL_MONITOR[]" $count
-    if (-not [NativeMethods]::GetPhysicalMonitorsFromHMONITOR($hMonitor, $count, $buffer)) {
-        return $true
-    }
-
-    foreach ($physical in $buffer) {
-        $physicalMonitors.Add($physical) | Out-Null
-
-        [uint32]$caps = 0
-        [uint32]$temps = 0
-        $hasCaps = [NativeMethods]::GetMonitorCapabilities($physical.hPhysicalMonitor, [ref]$caps, [ref]$temps)
-        $supportsBrightnessFlag = $hasCaps -and (($caps -band 0x2) -ne 0)
-
-        [uint32]$min = 0
-        [uint32]$current = 0
-        [uint32]$max = 0
-        $canReadBrightness = [NativeMethods]::GetMonitorBrightness($physical.hPhysicalMonitor, [ref]$min, [ref]$current, [ref]$max)
-
-        $percent = $null
-        if ($canReadBrightness) {
-            $percent = Convert-ToPercent -RawValue $current -MinValue $min -MaxValue $max
+    switch ($Command) {
+        "get" {
+            Write-Output ("serial={0} brightness={1}%" -f $serialText, $currentPercent)
         }
-
-        $monitorInfo.Add([pscustomobject]@{
-            Index = -1
-            Name = $physical.szPhysicalMonitorDescription.Trim()
-            RawName = $physical.szPhysicalMonitorDescription.Trim()
-            FriendlyName = $null
-            Handle = $physical.hPhysicalMonitor
-            SupportsBrightness = ($supportsBrightnessFlag -or $canReadBrightness)
-            Min = $min
-            Max = $max
-            Current = $current
-            BrightnessPercent = $percent
-        }) | Out-Null
-    }
-
-    return $true
-}
-
-$null = [NativeMethods]::EnumDisplayMonitors([IntPtr]::Zero, [IntPtr]::Zero, $enumCallback, [IntPtr]::Zero)
-
-try {
-    if ($monitorInfo.Count -eq 0) {
-        throw "No external monitors were discovered."
-    }
-
-    $friendlyNames = Get-WmiFriendlyMonitorNames
-    for ($i = 0; $i -lt $monitorInfo.Count; $i++) {
-        $monitor = $monitorInfo[$i]
-        $monitor.Index = $i
-
-        $friendly = $null
-        if ($i -lt $friendlyNames.Count) {
-            $friendly = $friendlyNames[$i]
+        "set" {
+            $targetPercent = $Value
+            $targetRaw = Convert-ToRaw -Percent $targetPercent
+            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
-
-        $rawName = $monitor.RawName
-        $displayName = $rawName
-        if (-not [string]::IsNullOrWhiteSpace($friendly)) {
-            $monitor.FriendlyName = $friendly
-            if ($rawName -match "(?i)generic|pnp|p2p" -or $rawName -eq $friendly) {
-                $displayName = $friendly
-            }
-            else {
-                $displayName = "{0} ({1})" -f $friendly, $rawName
-            }
+        "inc" {
+            $targetPercent = [Math]::Min(100, $currentPercent + $Value)
+            $targetRaw = Convert-ToRaw -Percent $targetPercent
+            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
-
-        $monitor.Name = $displayName
-    }
-
-    if ($Command -eq "list") {
-        foreach ($monitor in $monitorInfo) {
-            $status = if ($monitor.SupportsBrightness) { "brightness-control" } else { "no-brightness-control" }
-            $valueText = if ($null -eq $monitor.BrightnessPercent) { "n/a" } else { "$($monitor.BrightnessPercent)%" }
-            Write-Output ("#{0} {1} [{2}] current={3}" -f $monitor.Index, $monitor.Name, $status, $valueText)
+        "dec" {
+            $targetPercent = [Math]::Max(0, $currentPercent - $Value)
+            $targetRaw = Convert-ToRaw -Percent $targetPercent
+            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
-        return
-    }
-
-    $targets = $monitorInfo | Where-Object { $_.SupportsBrightness }
-    if ($PSBoundParameters.ContainsKey("MonitorIndex")) {
-        $targets = $targets | Where-Object { $_.Index -eq $MonitorIndex }
-    }
-    elseif (-not $All) {
-        $escapedMonitorName = [System.Management.Automation.WildcardPattern]::Escape($MonitorName)
-        $namePattern = "*{0}*" -f $escapedMonitorName
-        $targets = $targets | Where-Object {
-            $_.Name -like $namePattern -or
-            $_.RawName -like $namePattern -or
-            ($_.FriendlyName -and $_.FriendlyName -like $namePattern)
+        default {
+            throw "Unsupported command '$Command'."
         }
-    }
-
-    if (-not $targets -or $targets.Count -eq 0) {
-        $nameMessage = if ($PSBoundParameters.ContainsKey("MonitorIndex")) {
-            "monitor index $MonitorIndex"
-        }
-        elseif ($All) {
-            "any detected monitor"
-        }
-        else {
-            "monitor name containing '$MonitorName'"
-        }
-        throw "No brightness-capable monitor matched $nameMessage. Run 'list' to inspect monitor names and indexes."
-    }
-
-    foreach ($target in $targets) {
-        [uint32]$min = 0
-        [uint32]$current = 0
-        [uint32]$max = 0
-        if (-not [NativeMethods]::GetMonitorBrightness($target.Handle, [ref]$min, [ref]$current, [ref]$max)) {
-            Write-Warning "Could not read brightness for '$($target.Name)'."
-            continue
-        }
-
-        $currentPercent = Convert-ToPercent -RawValue $current -MinValue $min -MaxValue $max
-
-        switch ($Command) {
-            "get" {
-                Write-Output ("#{0} {1}: {2}%" -f $target.Index, $target.Name, $currentPercent)
-            }
-            "set" {
-                $newRaw = Convert-ToRawBrightness -Percent $Value -MinValue $min -MaxValue $max
-                if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $Value)
-                } else {
-                    Write-Warning "Failed to set brightness on '$($target.Name)'."
-                }
-            }
-            "inc" {
-                $newPercent = [Math]::Min(100, $currentPercent + $Value)
-                $newRaw = Convert-ToRawBrightness -Percent $newPercent -MinValue $min -MaxValue $max
-                if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $newPercent)
-                } else {
-                    Write-Warning "Failed to increase brightness on '$($target.Name)'."
-                }
-            }
-            "dec" {
-                $newPercent = [Math]::Max(0, $currentPercent - $Value)
-                $newRaw = Convert-ToRawBrightness -Percent $newPercent -MinValue $min -MaxValue $max
-                if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $newPercent)
-                } else {
-                    Write-Warning "Failed to decrease brightness on '$($target.Name)'."
-                }
-            }
-            default {
-                throw "Unsupported command '$Command'."
-            }
-        }
-    }
-}
-finally {
-    if ($physicalMonitors.Count -gt 0) {
-        $allPhysical = $physicalMonitors.ToArray()
-        [void][NativeMethods]::DestroyPhysicalMonitors([uint32]$allPhysical.Length, $allPhysical)
     }
 }

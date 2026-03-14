@@ -1,51 +1,55 @@
 # Studio Display Brightness Tool (Windows)
 
-Small PowerShell CLI for controlling monitor brightness through Windows monitor APIs (DDC/CI).
+Small PowerShell CLI that directly controls **Apple Studio Display** brightness through USB HID feature reports.
 
-This is aimed at Apple Studio Display, but it can also control any external monitor that exposes brightness controls via `dxva2.dll`.
+It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 
-## File
+- Vendor ID: `0x05AC` (Apple)
+- Product ID: `0x1114` (Studio Display)
+- Interface: `MI_07`
+- HID report: 7 bytes (`report id 1` + 4-byte little-endian brightness + 2 padding bytes)
+- Raw brightness range: `400..60000` mapped to `0..100%`
+
+## Files
 
 - `tools/studio-display-brightness.ps1`
+- `tools/studio-display-brightness.cmd`
 
 ## Requirements
 
 - Windows 10/11
 - PowerShell 5.1+ or PowerShell 7+
-- Monitor brightness controls available through DDC/CI (or equivalent monitor API support)
+- Apple Studio Display connected through USB-C/Thunderbolt
 
 ## Usage
 
-Open PowerShell and run from this folder:
-
 ```powershell
-# List monitor names and current brightness values
+# List detected Studio Displays (serial + brightness)
 .\tools\studio-display-brightness.ps1 list
 
-# Get brightness for monitor name containing "Studio Display"
+# Get brightness
 .\tools\studio-display-brightness.ps1 get
 
-# Set brightness to 55%
+# Set brightness (0-100)
 .\tools\studio-display-brightness.ps1 set 55
 
-# Increase/decrease by amount
+# Increase/decrease by step (1-100)
 .\tools\studio-display-brightness.ps1 inc 10
 .\tools\studio-display-brightness.ps1 dec 10
 
-# Target another monitor name
-.\tools\studio-display-brightness.ps1 get -MonitorName "DELL"
+# Target a specific display serial (optional)
+.\tools\studio-display-brightness.ps1 get -Serial "YOUR_SERIAL"
+.\tools\studio-display-brightness.ps1 set 65 -Serial "YOUR_SERIAL"
+```
 
-# Target by index (recommended when names are generic)
-.\tools\studio-display-brightness.ps1 get -MonitorIndex 0
-.\tools\studio-display-brightness.ps1 set 65 -MonitorIndex 0
+CMD wrapper:
 
-# Apply to all brightness-capable monitors
-.\tools\studio-display-brightness.ps1 set 40 -All
+```cmd
+tools\studio-display-brightness.cmd list
+tools\studio-display-brightness.cmd set 60
 ```
 
 ## Notes
 
-- If `list` shows `no-brightness-control`, Windows cannot set brightness for that monitor through this API path.
-- If `list` shows generic names, use `-MonitorIndex` from the `list` output for reliable targeting.
-- Some USB-C/TB docks or adapters do not pass brightness control signals reliably.
-- If Apple Studio Display is not controllable, try direct USB-C/Thunderbolt connection and update Windows graphics/monitor drivers.
+- Generic monitor names in Windows settings are expected and do not affect this tool.
+- If no device is found, try direct connection (some docks/adapters block the required HID path).
