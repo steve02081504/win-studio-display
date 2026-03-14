@@ -20,3 +20,4 @@
 - If CLI behavior is correct but UI is not, align UI target selection with CLI defaults (prefer serial/no selector) before relying on volatile index-based routing.
 - When launching script files from a child PowerShell process, pass `-Command` to the script explicitly (not positional command token) to avoid parameter-position drift.
 - For embedded variables in compiled scripts, check default/local scope as well as script/global; also delete legacy sidecar files so old logic cannot shadow embedded code.
+- In GUI troubleshooting loops, surface full backend errors in a modal and persist them to a temp log path so users can share exact failing command lines.

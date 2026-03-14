@@ -16,6 +16,7 @@
 - [x] Update UI selector strategy to prefer serial targeting and avoid index-only routing for single-display setups.
 - [x] Pass backend `-Command` as named argument in UI child-process invocation.
 - [x] Ensure embedded backend variable lookup also checks local scope and remove stale sidecar backend after EXE builds.
+- [x] Add user-visible error modal and temp log output with full backend command diagnostics.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -36,4 +37,5 @@
 - UI now prefers `-Serial` targeting when available and only uses `-Index` if multiple unnamed displays exist, aligning behavior with successful CLI usage.
 - UI child-process invocation now also passes backend `-Command` explicitly as named argument to remove command-position ambiguity.
 - Embedded backend discovery now checks default/local scope in addition to script/global, and EXE build now deletes old `dist/studio-display-brightness.ps1` sidecars that could override intended behavior.
+- UI now shows full backend errors in a dialog and logs them to `%TEMP%\studio-display-brightness-ui.log` for precise troubleshooting.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

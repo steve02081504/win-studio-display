@@ -100,6 +100,7 @@ $script:Displays = @()
 $script:Loading = $false
 $script:EmbeddedBackendTempFile = $null
 $script:PowerShellExe = $null
+$script:ErrorLogPath = Join-Path ([IO.Path]::GetTempPath()) "studio-display-brightness-ui.log"
 
 if ($script:BackendScript -eq "__EMBEDDED__") {
     $script:EmbeddedBackendTempFile = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-brightness-backend-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
@@ -369,6 +370,25 @@ function Set-Status {
     $statusLabel.ForeColor = if ($IsError) { [System.Drawing.Color]::Firebrick } else { [System.Drawing.Color]::DimGray }
 }
 
+function Report-UiError {
+    param([string]$Message)
+
+    Set-Status -Message $Message -IsError $true
+
+    try {
+        $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        Add-Content -LiteralPath $script:ErrorLogPath -Value "[$stamp] $Message"
+    }
+    catch { }
+
+    [void][System.Windows.Forms.MessageBox]::Show(
+        "$Message`n`nFull log: $script:ErrorLogPath",
+        "Studio Display Brightness Error",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    )
+}
+
 function Refresh-CurrentBrightness {
     $selected = Get-SelectedDisplay
     if ($null -eq $selected) {
@@ -381,7 +401,7 @@ function Refresh-CurrentBrightness {
         $valueLabel.Text = "$brightness%"
     }
     catch {
-        Set-Status -Message $_.Exception.Message -IsError $true
+        Report-UiError -Message $_.Exception.Message
     }
 }
 
@@ -430,7 +450,7 @@ function Reload-Displays {
         $displayCombo.Items.Clear()
         $script:Displays = @()
         $valueLabel.Text = "0%"
-        Set-Status -Message $_.Exception.Message -IsError $true
+        Report-UiError -Message $_.Exception.Message
     }
     finally {
         $script:Loading = $false
@@ -478,7 +498,7 @@ $applyButton.Add_Click({
         Set-Status -Message ("Applied brightness {0}%" -f $brightnessSlider.Value)
     }
     catch {
-        Set-Status -Message $_.Exception.Message -IsError $true
+        Report-UiError -Message $_.Exception.Message
     }
 })
 
