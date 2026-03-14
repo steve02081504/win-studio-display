@@ -48,7 +48,7 @@ if (-not $ps2exeCommand) {
 }
 
 $buildArgs = @{
-    InputFile = $uiScript
+    InputFile = $null
     OutputFile = $OutputPath
     NoConsole = $true
     Title = "Studio Display Brightness"
@@ -56,9 +56,29 @@ $buildArgs = @{
     Company = "win-studio-display"
 }
 
-& $ps2exeCommand.Name @buildArgs
+try {
+    $uiContent = Get-Content -LiteralPath $uiScript -Raw
+    $backendContent = Get-Content -LiteralPath $backendScript -Raw
 
-Copy-Item -LiteralPath $backendScript -Destination (Join-Path $outputDirectory "studio-display-brightness.ps1") -Force
+    $embeddedScriptPath = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-ui-embedded-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
+    $combinedContent = @"
+`$script:EmbeddedBackendScript = @'
+$backendContent
+'@
+
+$uiContent
+"@
+
+    Set-Content -LiteralPath $embeddedScriptPath -Value $combinedContent -Encoding UTF8
+    $buildArgs.InputFile = $embeddedScriptPath
+
+    & $ps2exeCommand.Name @buildArgs
+}
+finally {
+    if ($buildArgs.InputFile -and (Test-Path -LiteralPath $buildArgs.InputFile)) {
+        Remove-Item -LiteralPath $buildArgs.InputFile -Force
+    }
+}
 
 Write-Output "Built UI executable: $OutputPath"
-Write-Output "Copied backend script next to EXE."
+Write-Output "Backend script embedded in EXE."

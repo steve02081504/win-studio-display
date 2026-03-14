@@ -8,12 +8,65 @@ if ($env:OS -ne "Windows_NT") {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+if (-not (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:EmbeddedBackendScript = $null
+}
+
 function Resolve-BackendScript {
-    $candidates = @(
-        (Join-Path $PSScriptRoot "studio-display-brightness.ps1"),
-        (Join-Path $PSScriptRoot "tools/studio-display-brightness.ps1"),
-        (Join-Path (Split-Path -Parent $PSScriptRoot) "tools/studio-display-brightness.ps1")
-    )
+    if (-not [string]::IsNullOrWhiteSpace($script:EmbeddedBackendScript)) {
+        return "__EMBEDDED__"
+    }
+
+    $baseDirs = New-Object System.Collections.Generic.List[string]
+
+    if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+        $baseDirs.Add($PSScriptRoot)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PSCommandPath)) {
+        $commandDir = Split-Path -Parent $PSCommandPath
+        if (-not [string]::IsNullOrWhiteSpace($commandDir)) {
+            $baseDirs.Add($commandDir)
+        }
+    }
+
+    if ($MyInvocation -and $MyInvocation.MyCommand -and -not [string]::IsNullOrWhiteSpace($MyInvocation.MyCommand.Path)) {
+        $invocationDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        if (-not [string]::IsNullOrWhiteSpace($invocationDir)) {
+            $baseDirs.Add($invocationDir)
+        }
+    }
+
+    $appBaseDir = [System.AppContext]::BaseDirectory
+    if (-not [string]::IsNullOrWhiteSpace($appBaseDir)) {
+        $baseDirs.Add($appBaseDir)
+    }
+
+    $currentDir = (Get-Location).Path
+    if (-not [string]::IsNullOrWhiteSpace($currentDir)) {
+        $baseDirs.Add($currentDir)
+    }
+
+    $seen = @{}
+    $uniqueDirs = @()
+    foreach ($dir in $baseDirs) {
+        $normalized = $dir.TrimEnd([char[]]"\\/")
+        if (-not $seen.ContainsKey($normalized)) {
+            $seen[$normalized] = $true
+            $uniqueDirs += $normalized
+        }
+    }
+
+    $candidates = @()
+    foreach ($baseDir in $uniqueDirs) {
+        $candidates += (Join-Path $baseDir "studio-display-brightness.ps1")
+        $candidates += (Join-Path $baseDir "tools/studio-display-brightness.ps1")
+
+        $parentDir = Split-Path -Parent $baseDir
+        if (-not [string]::IsNullOrWhiteSpace($parentDir)) {
+            $candidates += (Join-Path $parentDir "tools/studio-display-brightness.ps1")
+        }
+    }
 
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate) {
@@ -21,18 +74,28 @@ function Resolve-BackendScript {
         }
     }
 
-    throw "Could not locate studio-display-brightness.ps1 backend script."
+    $searched = ($uniqueDirs -join ", ")
+    throw "Could not locate studio-display-brightness.ps1 backend script. Searched base directories: $searched"
 }
 
 $script:BackendScript = Resolve-BackendScript
 $script:Displays = @()
 $script:Loading = $false
 
+if ($script:BackendScript -eq "__EMBEDDED__") {
+    $script:EmbeddedBackendBlock = [scriptblock]::Create($script:EmbeddedBackendScript)
+}
+
 function Invoke-Backend {
     param([string[]]$Arguments)
 
     try {
-        $output = & $script:BackendScript @Arguments 2>&1
+        if ($script:BackendScript -eq "__EMBEDDED__") {
+            $output = & $script:EmbeddedBackendBlock @Arguments 2>&1
+        }
+        else {
+            $output = & $script:BackendScript @Arguments 2>&1
+        }
         return @($output | ForEach-Object { $_.ToString() })
     }
     catch {

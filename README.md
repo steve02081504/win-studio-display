@@ -88,7 +88,8 @@ Run on Windows PowerShell:
 Output:
 
 - `dist\StudioDisplayBrightnessUI.exe`
-- `dist\studio-display-brightness.ps1` (backend script placed next to the EXE)
+
+The backend is embedded in the EXE, so distribution can be a single file.
 
 ## Notes
 

@@ -8,3 +8,5 @@
 - In PowerShell scripts that use `Add-Type`, guard against redefinition when users run the script repeatedly in the same session.
 - For `Add-Type` collision fixes, use both a pre-check and a catch for "already exists" so false negatives in type detection do not break repeated runs.
 - If `Add-Type` collisions persist across session reuse, generate unique helper type names per run and invoke them through a resolved `[type]` handle.
+- For ps2exe-built apps, do not assume `$PSScriptRoot` is populated; resolve runtime paths using `System.AppContext.BaseDirectory` and other fallbacks.
+- If the user requests a single-file EXE, embed dependency scripts at build time instead of shipping sidecar `.ps1` files.

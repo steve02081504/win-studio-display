@@ -4,6 +4,8 @@
 - [x] Implement a PowerShell WinForms UI app with slider, refresh, and apply controls.
 - [x] Add Windows launcher and an EXE build script (`ps2exe`) that outputs a distributable executable.
 - [x] Update README with GUI usage and EXE build steps.
+- [x] Make EXE runtime path resolution robust when `$PSScriptRoot` is empty.
+- [x] Embed backend logic into the generated EXE so distribution is a single file.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -12,4 +14,6 @@
 - Added `tools/studio-display-brightness-ui.cmd` launcher and `tools/build-ui-exe.ps1` to generate `dist/StudioDisplayBrightnessUI.exe` via `ps2exe`.
 - Extended backend CLI with `-Index` targeting to support reliable UI selection.
 - Updated `README.md` with GUI usage and EXE build instructions.
+- UI backend discovery now checks multiple runtime base directories (including `System.AppContext.BaseDirectory`) to work from compiled EXE launches.
+- EXE build now embeds backend script content directly into the compiled UI executable; no sidecar backend file is required.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
