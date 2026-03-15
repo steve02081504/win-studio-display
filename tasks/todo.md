@@ -69,3 +69,18 @@
 - Root cause: backend value parsing only accepted strict integers; percentage-form inputs (for example `55%`) failed validation before command execution and surfaced the range error.
 - Fix: backend now supports optional trailing `%`, parses numeric values more robustly, and preserves raw-value conversion only for non-percent inputs.
 - Verification: static diff review completed and parsing/control-flow paths validated by inspection; runtime verification is blocked in this environment because PowerShell is not installed.
+
+## 2026-03-15 README + GitHub SEO
+
+- [x] Refresh `README.md` copy and structure to improve keyword coverage and discoverability.
+- [x] Add explicit discoverability keywords and usage wording for CLI/UI/EXE entry points.
+- [x] Update GitHub repository description and topic tags for better search relevance.
+- [x] Verify repository diff and document outcomes in this file.
+
+## 2026-03-15 README + GitHub SEO Review
+
+- Updated `README.md` headline, intro, quick start, and section wording to better match common search intents for Studio Display brightness control on Windows.
+- Added discoverability-focused terminology and clarified CLI, GUI, and EXE entry points to improve tool findability.
+- Updated GitHub repo description to: `Control Apple Studio Display brightness on Windows with a PowerShell CLI, WinForms GUI, and single-file EXE via native USB HID feature reports.`
+- Added GitHub topics: `apple-studio-display`, `studio-display`, `brightness-control`, `windows`, `powershell`, `usb-hid`, `monitor-control`, `winforms`, `cli-tool`, `ps2exe`.
+- Verified both README diff and live GitHub metadata via `gh repo view`.
